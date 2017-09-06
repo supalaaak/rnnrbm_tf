@@ -7,6 +7,7 @@ import glob
 import os
 import sys
 import tensorflow as tf
+import time
 
 import numpy
 
@@ -127,7 +128,6 @@ class RnnRbm:
         n_hidden=150,
         n_hidden_recurrent=100,
         lr=0.001,
-        n_visible=88,
         r=(21, 109),
         dt=0.3
     ):
@@ -151,10 +151,11 @@ class RnnRbm:
 
         self.r = r
         self.dt = dt
+        self.n_hidden=n_hidden
+        self.n_hidden_recurrent=n_hidden_recurrent
 
 
-
-    def train(self, files, batch_size=100, num_epochs=1):
+    def train(self, files, batch_size=100, num_epochs=200):
         '''Train the RNN-RBM via stochastic gradient descent (SGD) using MIDI
         files converted to piano-rolls.
 
@@ -170,16 +171,20 @@ class RnnRbm:
         assert len(files) > 0, 'Training set is empty!' \
                                ' (did you download the data files?)'
     
-        dataset = [midiread(f, r, dt).piano_roll.astype(numpy.float32) for f in files]
+        dataset = [midiread(f, self.r, self.dt).piano_roll.astype(numpy.float32) for f in files]
+        
+        n_visible=self.r[1]-self.r[0]
+
         
         v=tf.placeholder(tf.float32, shape=(None,n_visible))
         
+        
         with tf.variable_scope("model") as scope:
             try:
-                para=initialize_parameters(n_visible, n_hidden, n_hidden_recurrent)
+                para=initialize_parameters(n_visible, self.n_hidden, self.n_hidden_recurrent)
             except ValueError:
                 scope.reuse_variables()
-                para=initialize_parameters(n_visible, n_hidden, n_hidden_recurrent)
+                para=initialize_parameters(n_visible, self.n_hidden, self.n_hidden_recurrent)
         
         (v_sample, cost, monitor) = build_rnnrbm(v, para)
     
@@ -200,11 +205,12 @@ class RnnRbm:
                     print('Epoch %i/%i' % (epoch + 1, num_epochs))
                     print(numpy.mean(costs))
                     sys.stdout.flush()
+            
                 W1=gen_rnnrbm(para, nsteps=200)
                 piano_roll = sess.run(W1)
                 #piano_roll=tf.reshape(piano_roll,[piano_roll.shape[0].value,piano_roll.shape[2].value])
                 print(piano_roll)
-                midiwrite('sample1.mid', piano_roll, self.r, self.dt)
+                midiwrite('sample5.mid', piano_roll, self.r, self.dt)
         except KeyboardInterrupt:
             print('Interrupted by user.')
 
@@ -220,6 +226,9 @@ def test_rnnrbm(batch_size=100, num_epochs=200):
     return model
 
 if __name__ == '__main__':
+    start_time=time.time()
     model = test_rnnrbm()
+    
+    print(time.time()-start_time)
     #model.generate('sample1.mid')
     pylab.show()
